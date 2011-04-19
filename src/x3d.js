@@ -57,11 +57,12 @@ x3dom.isX3DElement = function(node) {
 x3dom.BindableStack = function (doc, type, defaultType, getter) {
     this._doc = doc; 
     this._type = type;
-    this._defaultType = defaultType;
+    this._defaultType = defaultType[0];
     this._defaultRoot = 0;
     this._getter = getter;
     this._bindBag = [];
     this._bindStack = [];
+    this._allowedTypes = defaultType;
     
     // x3dom.debug.logInfo ('Create BindableStack ' + this._type._typeName + ', ' + this._getter);
 };
@@ -205,20 +206,28 @@ x3dom.BindableStack.prototype.getActive = function () {
 x3dom.BindableBag = function (doc) {
     this._stacks = [];
     
-    this.addType ("X3DViewpointNode", "Viewpoint", "getViewpoint", doc);
+    this.addType ("X3DViewpointNode", ["Viewpoint", "OrthoViewpoint"], "getViewpoint", doc);
     this.addType ("X3DNavigationInfoNode", "NavigationInfo", "getNavigationInfo", doc);
     this.addType ("X3DBackgroundNode", "Background", "getBackground", doc);
     this.addType ("X3DFogNode", "Fog", "getFog", doc);
 };
 
-x3dom.BindableBag.prototype.addType = function(typeName,defaultTypeName,getter,doc) {
+x3dom.BindableBag.prototype.addType = function(typeName,allowedTypeNames,getter,doc) {
     var type = x3dom.nodeTypes[typeName];
-    var defaultType = x3dom.nodeTypes[defaultTypeName];
+    var allowedTypes = [];
+
+    if( typeof(allowedTypeNames) == "string" ) {
+        allowedTypeNames = [allowedTypeNames];
+    }
+
+    Array.forEach ( allowedTypeNames, function (n) {
+            allowedTypes.push(x3dom.nodeTypes[n]);
+     } );
     var stack;
     
-    if (type && defaultType) {
+    if (type && allowedTypeNames) {
         //x3dom.debug.logInfo ('Create new BindableStack for ' + typeName);
-        stack = new x3dom.BindableStack (doc, type, defaultType, getter);
+        stack = new x3dom.BindableStack (doc, type, allowedTypes, getter);
         this._stacks.push(stack);
     }
     else {
@@ -235,10 +244,12 @@ x3dom.BindableBag.prototype.setRefNode = function (node) {
 
 x3dom.BindableBag.prototype.addBindable = function(node) {
     for (var i = 0, n = this._stacks.length; i < n; i++) {
-        if ( x3dom.isa (node, this._stacks[i]._defaultType) ) {
+        for (var t = 0; t < this._stacks[i]._allowedTypes.length ; t++) {
+            if ( x3dom.isa (node, this._stacks[i]._allowedTypes[t]) ) {
             x3dom.debug.logInfo ('register bindable ' + node.typeName());
             this._stacks[i]._bindBag.push(node);
             return this._stacks[i];
+            }
         }
     }
     x3dom.debug.logError (node.typeName() + ' is not a valid bindable');
@@ -4354,6 +4365,117 @@ x3dom.registerNodeType(
                     this._lastAspect = aspect;
                 }
                 
+                return this._projMatrix;
+            }
+        }
+    )
+);
+
+/* ### OrthoViewpoint ### */
+x3dom.registerNodeType(
+        "OrthoViewpoint",
+        "Navigation",
+        defineClass(x3dom.nodeTypes.X3DViewpointNode,
+                function (ctx) {
+                    x3dom.nodeTypes.OrthoViewpoint.superClass.call(this, ctx);
+
+
+                    this.addField_MFFloat(ctx, 'fieldOfView', [-1.0,-1.0,1.0,1.0]);
+                    this.addField_SFVec3f(ctx, 'position', 0, 0, 10);
+                    this.addField_SFRotation(ctx, 'orientation', 0, 0, 0, 1);
+                    this.addField_SFVec3f(ctx, 'centerOfRotation', 0, 0, 0);
+                    this.addField_SFFloat(ctx, 'zNear', 0.1);
+                    this.addField_SFFloat(ctx, 'zFar', 100000);
+
+                    this._viewMatrix = this._vf.orientation.toMatrix().transpose().
+                            mult(x3dom.fields.SFMatrix4f.translation(this._vf.position.negate()));
+                    this._projMatrix = null;
+                    this._lastAspect = 1.0;
+
+                },
+        {
+            fieldChanged: function (fieldName) {
+
+                if (fieldName == "position" || fieldName == "orientation") {
+                    this._viewMatrix = this._vf.orientation.toMatrix().transpose().
+                            mult(x3dom.fields.SFMatrix4f.translation(this._vf.position.negate()));
+                }
+                else if (fieldName == "fieldOfView" ||
+                        fieldName == "zNear" || fieldName == "zFar") {
+                    this._projMatrix = null;   // only trigger refresh
+                }
+                else if (fieldName === "set_bind") {
+                    // XXX FIXME; call parent.fieldChanged();
+                    this.bind(this._vf.set_bind);
+                }
+            },
+
+            activate: function (prev) {
+                if (prev) {
+                    this._nameSpace.doc._viewarea.animateTo(this, prev);
+                }
+                x3dom.nodeTypes.X3DViewpointNode.prototype.activate.call(this,prev);
+                this._nameSpace.doc._viewarea._needNavigationMatrixUpdate = true;
+                //x3dom.debug.logInfo ('activate ViewBindable ' + this._DEF);
+            },
+
+            deactivate: function (prev) {
+                x3dom.nodeTypes.X3DViewpointNode.prototype.deactivate.call(this,prev);
+                //x3dom.debug.logInfo ('deactivate ViewBindable ' + this._DEF);
+            },
+
+            getCenterOfRotation: function() {
+                return this._vf.centerOfRotation;
+            },
+            getViewMatrix: function() {
+                return this._viewMatrix;
+            },
+            getFieldOfView: function() {
+                return this._vf.fieldOfView;
+            },
+
+            setView: function(newView) {
+                var mat = this.getCurrentTransform();
+                mat = mat.inverse();
+                this._viewMatrix = mat.mult(newView);
+            },
+            resetView: function() {
+                this._viewMatrix = this._vf.orientation.toMatrix().transpose().
+                        mult(x3dom.fields.SFMatrix4f.translation(this._vf.position.negate()));
+            },
+
+            getProjectionMatrix: function(aspect)
+            {
+                if (this._projMatrix == null)
+                {
+                    var far = this._vf.zFar;
+                    var near = this._vf.zNear;
+                    var left = this._vf.fieldOfView[0];
+                    var right = this._vf.fieldOfView[2];
+                    var top = this._vf.fieldOfView[1];
+                    var bottom = this._vf.fieldOfView[3];
+
+                    var rl = (right - left);
+                    var tb = (top - bottom);
+                    var fn = (far - near);
+
+
+
+                    this._projMatrix = new x3dom.fields.SFMatrix4f(
+                            2 / rl, 0, 0, 0,
+                            0, 2 / tb, 0, 0,
+                            0, 0, 1 / (far - near), -near/(far - near),
+                            0, 0, 0, 1
+                            );
+
+                    // this._lastAspect = aspect;
+                }
+                /*else if (this._lastAspect !== aspect)
+                 {
+                 this._projMatrix._00 = (1 / Math.tan(this._vf.fieldOfView / 2)) / aspect;
+                 this._lastAspect = aspect;
+                 }*/
+
                 return this._projMatrix;
             }
         }
