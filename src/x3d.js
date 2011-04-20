@@ -60,13 +60,12 @@ x3dom.isX3DElement = function(node) {
 x3dom.BindableStack = function (doc, type, defaultType, getter) {
     this._doc = doc; 
     this._type = type;
-    this._defaultType = defaultType[0];
+    this._defaultType = defaultType;
     this._defaultRoot = 0;
     this._getter = getter;
     this._bindBag = [];
     this._bindStack = [];
-    this._allowedTypes = defaultType;
-    
+
     // x3dom.debug.logInfo ('Create BindableStack ' + this._type._typeName + ', ' + this._getter);
 };
 
@@ -209,28 +208,20 @@ x3dom.BindableStack.prototype.getActive = function () {
 x3dom.BindableBag = function (doc) {
     this._stacks = [];
     
-    this.addType ("X3DViewpointNode", ["Viewpoint", "OrthoViewpoint"], "getViewpoint", doc);
+    this.addType ("X3DViewpointNode", "Viewpoint", "getViewpoint", doc);
     this.addType ("X3DNavigationInfoNode", "NavigationInfo", "getNavigationInfo", doc);
     this.addType ("X3DBackgroundNode", "Background", "getBackground", doc);
     this.addType ("X3DFogNode", "Fog", "getFog", doc);
 };
 
-x3dom.BindableBag.prototype.addType = function(typeName,allowedTypeNames,getter,doc) {
+x3dom.BindableBag.prototype.addType = function(typeName,defaultTypeName,getter,doc) {
     var type = x3dom.nodeTypes[typeName];
-    var allowedTypes = [];
-
-    if( typeof(allowedTypeNames) == "string" ) {
-        allowedTypeNames = [allowedTypeNames];
-    }
-
-    Array.forEach ( allowedTypeNames, function (n) {
-            allowedTypes.push(x3dom.nodeTypes[n]);
-     } );
+    var defaultType = x3dom.nodeTypes[defaultTypeName];
     var stack;
     
-    if (type && allowedTypeNames) {
+    if (type && defaultType) {
         //x3dom.debug.logInfo ('Create new BindableStack for ' + typeName);
-        stack = new x3dom.BindableStack (doc, type, allowedTypes, getter);
+        stack = new x3dom.BindableStack (doc, type, defaultType, getter);
         this._stacks.push(stack);
     }
     else {
