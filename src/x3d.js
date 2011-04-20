@@ -4488,7 +4488,10 @@ x3dom.registerNodeType(
             getFieldOfView: function() {
                 return this._vf.fieldOfView;
             },
-
+            setFieldOfView: function(fov) {
+                this._vf.fieldOfView = fov;
+                this._projMatrix = null;
+            },
             setView: function(newView) {
                 var mat = this.getCurrentTransform();
                 mat = mat.inverse();
@@ -6636,10 +6639,24 @@ x3dom.Viewarea.prototype.onDrag = function (x, y, buttonState)
             vec = new x3dom.fields.SFVec3f(0,0,d*(dx+dy)/this._height);
             this._movement = this._movement.add(vec);
 
-            //TODO; move real distance along viewing ray
-            this._transMat = viewpoint.getViewMatrix().inverse().
-                mult(x3dom.fields.SFMatrix4f.translation(this._movement)).
-                mult(viewpoint.getViewMatrix());
+
+            if( x3dom.isa( viewpoint, x3dom.nodeTypes.OrthoViewpoint) ) {
+                console.debug(viewpoint);
+                var factorX =  d*(dx+dy)/this._height;
+                var factorY =  d*(dx+dy)/this._width;
+                var left = viewpoint.getFieldOfView()[0] - factorX;
+                var right = viewpoint.getFieldOfView()[2] + factorX;
+                var bottom = viewpoint.getFieldOfView()[1] - factorY;
+                var top = viewpoint.getFieldOfView()[3] + factorY;
+
+                var newFov = new x3dom.fields.MFFloat([left, bottom, right, top]);
+                viewpoint.setFieldOfView(newFov);
+            } else {
+                //TODO; move real distance along viewing ray
+                this._transMat = viewpoint.getViewMatrix().inverse().
+                    mult(x3dom.fields.SFMatrix4f.translation(this._movement)).
+                    mult(viewpoint.getViewMatrix());
+            }
         }
     }
     
