@@ -4437,7 +4437,7 @@ x3dom.registerNodeType(
 
                     this.addField_MFFloat(ctx, 'fieldOfView', [-1.0,-1.0,1.0,1.0]);
                     this.addField_SFVec3f(ctx, 'position', 0, 0, 10);
-                    this.addField_SFRotation(ctx, 'orientation', 0, 0, 0, 1);
+                    this.addField_SFRotation(ctx, 'orientation', 0, 0, 1, 0);
                     this.addField_SFVec3f(ctx, 'centerOfRotation', 0, 0, 0);
                     this.addField_SFFloat(ctx, 'zNear', 0.1);
                     this.addField_SFFloat(ctx, 'zFar', 100000);
@@ -4507,19 +4507,17 @@ x3dom.registerNodeType(
                     var near = this._vf.zNear;
                     var left = this._vf.fieldOfView[0];
                     var right = this._vf.fieldOfView[2];
-                    var top = this._vf.fieldOfView[1];
-                    var bottom = this._vf.fieldOfView[3];
+                    var bottom = this._vf.fieldOfView[1];
+                    var top = this._vf.fieldOfView[3];
 
                     var rl = (right - left);
                     var tb = (top - bottom);
                     var fn = (far - near);
 
-
-
                     this._projMatrix = new x3dom.fields.SFMatrix4f(
-                            2 / rl, 0, 0, 0,
-                            0, 2 / tb, 0, 0,
-                            0, 0, 1 / fn, -near/fn,
+                            2 / rl, 0, 0, -(right+left) / rl,
+                            0, 2 / tb, 0, -(top+bottom) / tb,
+                            0, 0, -2 / fn, -(far+near) / fn,
                             0, 0, 0, 1
                             );
 
