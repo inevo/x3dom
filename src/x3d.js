@@ -4519,7 +4519,7 @@ x3dom.registerNodeType(
                     this._projMatrix = new x3dom.fields.SFMatrix4f(
                             2 / rl, 0, 0, 0,
                             0, 2 / tb, 0, 0,
-                            0, 0, 1 / (far - near), -near/(far - near),
+                            0, 0, 1 / fn, -near/fn,
                             0, 0, 0, 1
                             );
 
@@ -6082,13 +6082,13 @@ x3dom.Viewarea.prototype.animateTo = function(target, prev, dur)
 {
     var navi = this._scene.getNavigationInfo();
     
-    if (x3dom.isa(target, x3dom.nodeTypes.Viewpoint)) {
+    if (x3dom.isa(target, x3dom.nodeTypes.X3DViewpointNode)) {
         target = target._viewMatrix;
     }
     
     if (navi._vf.transitionType[0].toLowerCase() !== "teleport")
     {
-        if (prev && x3dom.isa(prev, x3dom.nodeTypes.Viewpoint)) {
+        if (prev && x3dom.isa(prev, x3dom.nodeTypes.X3DViewpointNode)) {
             prev = prev.getCurrentTransform().mult(prev.getViewMatrix()).
                          mult(this._transMat).mult(this._rotMat);
         }
