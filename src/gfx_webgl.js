@@ -3164,8 +3164,9 @@ x3dom.gfx_webgl = (function () {
             obj3d = scene.drawableObjects.Billboards[i][1];
             
             if (obj3d) {
+                var mat_view_model = mat_view.mult(trafo);
                 obj3d._eye = trafo.inverse().multMatrixPnt(center);
-                obj3d._eyeViewUp = new x3dom.fields.SFVec3f(mat_view._10, mat_view._11, mat_view._12);
+                obj3d._eyeViewUp = new x3dom.fields.SFVec3f(mat_view_model._10, mat_view_model._11, mat_view_model._12);
             }
         }
         
